@@ -248,6 +248,6 @@ For production deployment:
 3. Update NEXTAUTH_URL to your production domain
 4. Run database migrations
 
-## License
+# License
 
 MIT

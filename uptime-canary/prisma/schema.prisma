@@ -1,0 +1,179 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  checks        Check[]
+  notificationPreferences NotificationPreference[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Monitoring models
+
+enum HttpMethod {
+  GET
+  HEAD
+  POST
+  PUT
+  PATCH
+  DELETE
+}
+
+enum MonitorStatus {
+  UNKNOWN
+  UP
+  DOWN
+}
+
+enum IncidentStatus {
+  OPEN
+  RESOLVED
+}
+
+model Check {
+  id               String         @id @default(cuid())
+  userId           String
+  name             String
+  url              String
+  method           HttpMethod     @default(GET)
+  expectedStatus   Int            @default(200)
+  intervalSeconds  Int            @default(60) // how often to run the check
+  timeoutMs        Int            @default(10000)
+  enabled          Boolean        @default(true)
+  lastStatus       MonitorStatus  @default(UNKNOWN)
+  lastCheckedAt    DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  results          CheckResult[]
+  incidents        Incident[]
+  statusPageItems  StatusPageItem[]
+
+  @@index([userId])
+}
+
+model CheckResult {
+  id             String         @id @default(cuid())
+  checkId        String
+  status         MonitorStatus
+  statusCode     Int?
+  responseTimeMs Int?
+  checkedAt      DateTime       @default(now())
+  errorMessage   String?
+
+  check          Check          @relation(fields: [checkId], references: [id], onDelete: Cascade)
+
+  @@index([checkId])
+}
+
+model Incident {
+  id          String         @id @default(cuid())
+  checkId     String
+  status      IncidentStatus @default(OPEN)
+  startedAt   DateTime       @default(now())
+  resolvedAt  DateTime?
+  summary     String?
+
+  check       Check          @relation(fields: [checkId], references: [id], onDelete: Cascade)
+
+  @@index([checkId])
+}
+
+model StatusPage {
+  id          String   @id @default(cuid())
+  userId      String
+  slug        String   @unique
+  title       String
+  description String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       StatusPageItem[]
+
+  @@index([userId])
+  @@index([slug])
+}
+
+model StatusPageItem {
+  id           String     @id @default(cuid())
+  statusPageId String
+  checkId      String
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  statusPage   StatusPage @relation(fields: [statusPageId], references: [id], onDelete: Cascade)
+  check        Check      @relation(fields: [checkId], references: [id], onDelete: Cascade)
+
+  @@unique([statusPageId, checkId])
+  @@index([statusPageId])
+  @@index([checkId])
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  channel   String   // "email", "sms", "webhook", etc.
+  address   String   // email address, phone number, webhook URL, etc.
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([userId, channel, address])
+}
